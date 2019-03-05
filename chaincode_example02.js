@@ -66,9 +66,9 @@ let Chaincode = class {
 	console.info('Finish init asset');
   }
 
-  async readAsset(stub, args, thisClass) {
+  async readItem(stub, args, thisClass) {
     if (args.length != 1) {
-      throw new Error('Incorrect number of arguments. Expecting name of the marble to query');
+      throw new Error('Incorrect number of arguments. Expecting ID of the item to query');
     }
 
     let id = args[0];
@@ -220,6 +220,7 @@ let Chaincode = class {
     contract.type = type;
     contract.owner = owner;
     contract.id = id;
+    contract.fulfilled = 0;
 
     await stub.putState(id, Buffer.from(JSON.stringify(contract)));
 
@@ -241,6 +242,43 @@ let Chaincode = class {
     let method = thisClass['getQueryResultForQueryString'];
     let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
     return queryResults; //shim.success(queryResults);
+  }
+
+  async checkAndMatch(stub, id, owner, type, thisClass) {
+    //Get all
+    //Check for type = !this.type, owner != this.owner
+    //make both fulfilled
+
+    let queryString = {};
+    queryString.selector = {};
+    queryString.selector.doctype = 'contract';
+    queryString.selector.owner = {};
+    queryString.selector.owner.$ne = owner;
+    if (type == 'buy'){
+      queryString.selector.type = 'sell';
+    } else {
+      queryString.selector.type = 'buy';
+    }
+    let method = thisClass['getQueryResultForQueryString'];
+    let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
+
+    if(queryResults.length == 0){
+      return;
+    }
+
+    let matchedID = queryResults[0].id;
+     //Get object
+     //Alter fulfilled to true
+     //Set matchedwith id this.id
+     //Store
+
+     //Get new contract
+     //alter fulfilled to true
+     //set matchedwith to matchedID
+     //store
+
+     return;
+
   }
 
 };
