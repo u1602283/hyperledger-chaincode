@@ -186,7 +186,7 @@ let Chaincode = class {
     return queryResults; //shim.success(queryResults);
   }
 
-  async queryAssets(stub, args, thisClass) {
+  async queryAll(stub, args, thisClass) {
     //   0
     // 'queryString'
     if (args.length < 1) {
@@ -200,6 +200,49 @@ let Chaincode = class {
     let queryResults = await method(stub, queryString, thisClass);
     return queryResults;
   }
+
+  async initContract(stub, args, thisClass) {
+    if (args.length != 3) {
+      throw new Error('Incorrect number of arguments.');
+    }
+
+    let id = args[0];
+    let owner = args[1].toLowerCase();
+    let type = args[2].toLowerCase();
+
+    let assetState = await stub.getState(id);
+    if (assetState.toString()){
+      throw new error("Failed to add contract, ID already exists");
+    }
+
+    let contract = {};
+    contract.doctype = 'contract';
+    contract.type = type;
+    contract.owner = owner;
+    contract.id = id;
+
+    await stub.putState(id, Buffer.from(JSON.stringify(contract)));
+
+	  console.info('Finish init contract');
+  }
+
+  async getContractsByOwner(stub, args, thisClass) {
+    //   0
+    // 'bob'
+    if (args.length < 1) {
+      throw new Error('Incorrect number of arguments. Expecting owner name.')
+    }
+
+    let owner = args[0].toLowerCase();
+    let queryString = {};
+    queryString.selector = {};
+    queryString.selector.doctype = 'contract';
+    queryString.selector.owner = owner;
+    let method = thisClass['getQueryResultForQueryString'];
+    let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
+    return queryResults; //shim.success(queryResults);
+  }
+
 };
 
 shim.start(new Chaincode());
