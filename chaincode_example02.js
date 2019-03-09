@@ -166,7 +166,8 @@ let Chaincode = class {
 
     let results = await method(resultsIterator, false);
 
-    return Buffer.from(JSON.stringify(results));
+    //return Buffer.from(JSON.stringify(results));
+    return results;
   }
 
   async queryAssetsByOwner(stub, args, thisClass) {
@@ -198,7 +199,7 @@ let Chaincode = class {
     }
     let method = thisClass['getQueryResultForQueryString'];
     let queryResults = await method(stub, queryString, thisClass);
-    return queryResults;
+    return Buffer.from(JSON.stringify(queryResults));
   }
 
   async initContract(stub, args, thisClass) {
@@ -216,13 +217,16 @@ let Chaincode = class {
     }
 
     let contract = {};
-    contract.doctype = 'contract';
+    contract.doctype = "contract";
     contract.type = type;
     contract.owner = owner;
     contract.id = id;
-    contract.fulfilled = 0;
+	  contract.fulfilled = "0";
+	  contract.matchedWith = "-1";
 
-    await stub.putState(id, Buffer.from(JSON.stringify(contract)));
+	  await stub.putState(id, Buffer.from(JSON.stringify(contract)));
+  
+	  await thisClass.checkAndMatch(stub, id, owner, type, thisClass);
 
 	  console.info('Finish init contract');
   }
@@ -237,7 +241,7 @@ let Chaincode = class {
     let owner = args[0].toLowerCase();
     let queryString = {};
     queryString.selector = {};
-    queryString.selector.doctype = 'contract';
+    queryString.selector.doctype = "contract";
     queryString.selector.owner = owner;
     let method = thisClass['getQueryResultForQueryString'];
     let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
@@ -245,39 +249,64 @@ let Chaincode = class {
   }
 
   async checkAndMatch(stub, id, owner, type, thisClass) {
-    //Get all
-    //Check for type = !this.type, owner != this.owner
-    //make both fulfilled
 
     let queryString = {};
     queryString.selector = {};
-    queryString.selector.doctype = 'contract';
+    queryString.selector.doctype = "contract";
     queryString.selector.owner = {};
     queryString.selector.owner.$ne = owner;
-    if (type == 'buy'){
-      queryString.selector.type = 'sell';
+    queryString.selector.fulfilled = {};
+    queryString.selector.fulfilled.$eq = "0";
+
+    if (type == "buy"){
+      queryString.selector.type = "sell";
     } else {
-      queryString.selector.type = 'buy';
+      queryString.selector.type = "buy";
     }
     let method = thisClass['getQueryResultForQueryString'];
     let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
 
-    if(queryResults.length == 0){
+    if(queryResults.length === 0){
       return;
     }
 
     let matchedID = queryResults[0].id;
-     //Get object
-     //Alter fulfilled to true
-     //Set matchedwith id this.id
-     //Store
+    throw new Error("Matched ID = " + matchedID);
+    let contractAsBytes = await stub.getState(matchedID); 
+    let contractToFulfill = {};
+    try {
+     contractToFulfill = JSON.parse(contractAsBytes.toString()); //unmarshal
+    } catch (err) {
+      let jsonResp = {};
+      jsonResp.error = 'Failed to decode JSON of: ' + matchedID;
+      throw new Error(jsonResp);
+    }
+    console.info(contractToFulfill);
+    
+    contractToFulfill.fulfilled = "1";
+    contractToFulfill.matchedWith = id;
 
-     //Get new contract
-     //alter fulfilled to true
-     //set matchedwith to matchedID
-     //store
+    let contractJSONasBytes = Buffer.from(JSON.stringify(contractToFulfill));
+    await stub.putState(id, contractJSONasBytes);
 
-     return;
+    let newContractAsBytes = await stub.getState(id);
+    let newContractToFulfill = {};
+    try {
+      newContractToFulfill = JSON.parse(newContractAsBytes.toString()); //unmarshal
+    } catch (err) {
+      let jsonResp = {};
+      jsonResp.error = 'Failed to decode JSON of: ' + id;
+      throw new Error(jsonResp);
+    }
+    console.info(newContractToFulfill);
+    
+    newContractToFulfill.fulfilled = "1";
+	  newContractToFulfill.matchedWith = matchedID;
+
+    let newContractJSONasBytes = Buffer.from(JSON.stringify(newContractToFulfill));
+    await stub.putState(id, newContractJSONasBytes);
+
+    console.info("Matched contract")
 
   }
 
