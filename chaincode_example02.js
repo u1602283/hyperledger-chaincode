@@ -1,5 +1,5 @@
 /*
-# Modified from code marbles_chaincode.js produced by IBM Corp. (Copyright IBM Corp. All Rights Reserved.)
+# Based on code marbles_chaincode.js produced by IBM Corp. (Copyright IBM Corp. All Rights Reserved.)
 # SPDX-License-Identifier: Apache-2.0
 */
 
@@ -45,11 +45,11 @@ let Chaincode = class {
 		let id = args[0];
 		let owner = args[1];
 		let timestamp = args[2];
-		let value = args[3];
+		let price = args[3];
 		
 		let assetState = await stub.getState(id);
 		if (assetState.toString()){
-			throw new error("Failed to add asset, ID already exists");
+			throw new Error("Failed to add asset, ID already exists");
 		}
 		
 		let asset = {};
@@ -57,11 +57,11 @@ let Chaincode = class {
 		asset.id = id;
 		asset.owner = owner;
 		asset.timestamp = timestamp;
-		asset.value = value;
+		asset.price = parseInt(price);
 		
 		await stub.putState(id, Buffer.from(JSON.stringify(asset)));
 		
-		await thisClass.initContractInternal(stub, [crypto.createHash('sha1').update(id).digest('hex'), owner], thisClass);
+		await thisClass.initContractInternal(stub, [crypto.createHash('sha1').update(id).digest('hex'), owner, parseInt(price)], thisClass);
 		
 		console.info('Finish init asset');
 	}
@@ -234,7 +234,7 @@ let Chaincode = class {
 	}
 	
 	async initContract(stub, args, thisClass) {
-		if (args.length != 3) {
+		if (args.length != 4) {
 			throw new Error('Incorrect number of arguments.');
 		}
 		
@@ -245,45 +245,19 @@ let Chaincode = class {
 		} else {
 			throw new Error("Invalid contract type");
 		}
-
-		// let id = args[0];
-		// let owner = args[1].toLowerCase();
-		// let type = args[2].toLowerCase();
-		
-		// if(type === "sell"){
-		// 	await thisClass.hasAsset(stub, owner, thisClass);
-		// }
-
-		// let assetState = await stub.getState(id);
-		// if (assetState.toString()){
-		// 	throw new error("Failed to add contract, ID already exists");
-		// }
-		
-		// let contract = {};
-		// contract.doctype = "contract";
-		// contract.type = type;
-		// contract.owner = owner;
-		// contract.id = id;
-		// contract.fulfilled = "0";
-		// contract.matchedWith = "-1";
-		
-		// await stub.putState(id, Buffer.from(JSON.stringify(contract)));
-		
-		// await thisClass.checkAndMatch(stub, contract, thisClass);
-		
-		// console.info('Finish init contract');
 	}
 
 	async putSell(stub, args, thisClass){
 		
 		let id = args[0];
 		let owner = args[1].toLowerCase();
+		let price = args[3];
 
 		await thisClass.hasAsset(stub, owner, thisClass);
 
 		let assetState = await stub.getState(id);
 		if (assetState.toString()){
-			throw new error("Failed to add contract, ID already exists");
+			throw new Error("Failed to add contract, ID already exists");
 		}
 
 		let contract = {};
@@ -292,6 +266,7 @@ let Chaincode = class {
 		contract.id = id;
 		contract.fulfilled = "0";
 		contract.matchedWith = "-1";
+		contract.price = parseInt(price);
 
 		await stub.putState(id, Buffer.from(JSON.stringify(contract)));
 		
@@ -305,10 +280,11 @@ let Chaincode = class {
 	async putBuy(stub, args, thisClass){
 		let id = args[0];
 		let owner = args[1].toLowerCase();
+		let price = args[3];
 
 		let assetState = await stub.getState(id);
 		if (assetState.toString()){
-			throw new error("Failed to add contract, ID already exists");
+			throw new Error("Failed to add contract, ID already exists");
 		}
 
 		let contract = {};
@@ -317,6 +293,7 @@ let Chaincode = class {
 		contract.id = id;
 		contract.fulfilled = "0";
 		contract.matchedWith = "-1";
+		contract.price = parseInt(price);
 
 		await stub.putState(id, Buffer.from(JSON.stringify(contract)));
 		
@@ -328,16 +305,17 @@ let Chaincode = class {
 	}
 
 	async initContractInternal(stub, args, thisClass) {
-		if (args.length != 2) {
+		if (args.length != 3) {
 			throw new Error('Incorrect number of arguments.');
 		}
 		
 		let id = args[0];
 		let owner = args[1].toLowerCase();
+		let price = args[2];
 		
 		let assetState = await stub.getState(id);
 		if (assetState.toString()){
-			throw new error("Failed to add contract, ID already exists");
+			throw new Error("Failed to add contract, ID already exists");
 		}
 		
 		let contract = {};
@@ -346,6 +324,7 @@ let Chaincode = class {
 		contract.id = id;
 		contract.fulfilled = "0";
 		contract.matchedWith = "-1";
+		contract.price = parseInt(price);
 		
 		await stub.putState(id, Buffer.from(JSON.stringify(contract)));
 		
@@ -382,13 +361,16 @@ let Chaincode = class {
 		queryString.selector.owner.$ne = contract.owner;
 		queryString.selector.fulfilled = {};
 		queryString.selector.fulfilled.$eq = "0";
+		queryString.selector.price = {};
 		let newIsBuy = 0;
 		
 		if (contract.doctype == "buyContract"){
 			newIsBuy = 1;
 			queryString.selector.doctype = "sellContract";
+			queryString.selector.price.$lte = contract.price;
 		} else {
 			queryString.selector.doctype = "buyContract";
+			queryString.selector.price.$gte = contract.price;
 		}
 		let method = thisClass['getQueryResultForQueryString'];
 		let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
