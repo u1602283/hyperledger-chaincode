@@ -226,7 +226,7 @@ let Chaincode = class {
 
 	  await stub.putState(id, Buffer.from(JSON.stringify(contract)));
   
-	  await thisClass.checkAndMatch(stub, id, owner, type, thisClass);
+	  await thisClass.checkAndMatch(stub, contract, thisClass);
 
 	  console.info('Finish init contract');
   }
@@ -235,7 +235,7 @@ let Chaincode = class {
     //   0
     // 'bob'
     if (args.length < 1) {
-      throw new Error('Incorrect number of arguments. Expecting owner name.')
+      throw new Error('Incorrect number of arguments. Expecting owner name.');
     }
 
     let owner = args[0].toLowerCase();
@@ -248,17 +248,17 @@ let Chaincode = class {
     return queryResults; //shim.success(queryResults);
   }
 
-  async checkAndMatch(stub, id, owner, type, thisClass) {
+  async checkAndMatch(stub, contract, thisClass) {
 
     let queryString = {};
     queryString.selector = {};
     queryString.selector.doctype = "contract";
     queryString.selector.owner = {};
-    queryString.selector.owner.$ne = owner;
+    queryString.selector.owner.$ne = contract.owner;
     queryString.selector.fulfilled = {};
     queryString.selector.fulfilled.$eq = "0";
 
-    if (type == "buy"){
+    if (contract.type == "buy"){
       queryString.selector.type = "sell";
     } else {
       queryString.selector.type = "buy";
@@ -270,44 +270,38 @@ let Chaincode = class {
       return;
     }
 
-    let matchedID = queryResults[0].id;
-    throw new Error("Matched ID = " + matchedID);
+    let matchedID = queryResults[0].Record.id;
+
     let contractAsBytes = await stub.getState(matchedID); 
+    
     let contractToFulfill = {};
-    try {
-     contractToFulfill = JSON.parse(contractAsBytes.toString()); //unmarshal
-    } catch (err) {
-      let jsonResp = {};
-      jsonResp.error = 'Failed to decode JSON of: ' + matchedID;
-      throw new Error(jsonResp);
-    }
+    contractToFulfill = JSON.parse(contractAsBytes.toString()); //unmarshal
+    // try {
+    // } catch (err) {
+    // }
     console.info(contractToFulfill);
-    
     contractToFulfill.fulfilled = "1";
-    contractToFulfill.matchedWith = id;
-
-    let contractJSONasBytes = Buffer.from(JSON.stringify(contractToFulfill));
-    await stub.putState(id, contractJSONasBytes);
-
-    let newContractAsBytes = await stub.getState(id);
-    let newContractToFulfill = {};
-    try {
-      newContractToFulfill = JSON.parse(newContractAsBytes.toString()); //unmarshal
-    } catch (err) {
-      let jsonResp = {};
-      jsonResp.error = 'Failed to decode JSON of: ' + id;
-      throw new Error(jsonResp);
-    }
-    console.info(newContractToFulfill);
+    contractToFulfill.matchedWith = contract.id;
     
-    newContractToFulfill.fulfilled = "1";
-	  newContractToFulfill.matchedWith = matchedID;
+    let contractJSONasBytes = Buffer.from(JSON.stringify(contractToFulfill));
+    
+    await stub.putState(matchedID, contractJSONasBytes);
+    
+    // let newContractAsBytes = await stub.getState(id);
+    // let newContractToFulfill = {};
+    // throw new Error(newContractAsBytes.toString());
+    // newContractToFulfill = JSON.parse(newContractAsBytes.toString()); //unmarshal
 
-    let newContractJSONasBytes = Buffer.from(JSON.stringify(newContractToFulfill));
-    await stub.putState(id, newContractJSONasBytes);
-
+    //console.info(newContractToFulfill);
+    
+    contract.fulfilled = "1";
+    contract.matchedWith = matchedID;
+    // throw new Error(JSON.stringify(contractToFulfill) + "\n" + JSON.stringify(newContractToFulfill));
+    let newContractJSONasBytes = Buffer.from(JSON.stringify(contract));
+    await stub.putState(contract.id, newContractJSONasBytes);
+    // throw new Error(JSON.stringify(contractToFulfill) + JSON.stringify(contract))
     console.info("Matched contract")
-
+    return 1;
   }
 
 };
