@@ -61,7 +61,7 @@ let Chaincode = class {
 		
 		await stub.putState(id, Buffer.from(JSON.stringify(asset)));
 		
-		await thisClass.initContractInternal(stub, [crypto.createHash('sha1').update(id).digest('hex'), owner, parseInt(price)], thisClass);
+		await thisClass.initContractInternal(stub, [crypto.createHash('sha1').update(id).digest('hex'), owner, parseInt(price), id], thisClass);
 		
 		console.info('Finish init asset');
 	}
@@ -202,41 +202,37 @@ let Chaincode = class {
 		return Buffer.from(JSON.stringify(queryResults));
 	}
 
-	async hasAsset(stub, entity, thisClass) {
+	async hasAsset(stub, entity, assetID, thisClass) {
 		let queryStringA = {};
 		queryStringA.selector = {};
 		queryStringA.selector.doctype = "asset";
-		queryStringA.selector.owner = {};
-		queryStringA.selector.owner.$eq = entity;
+		queryStringA.selector.owner = entity;
+		queryStringA.selector.id = assetID;
 
 		let method = thisClass['getQueryResultForQueryString'];
 		let assets = await method(stub, JSON.stringify(queryStringA), thisClass);
 		
 		if(assets.length === 0){
-			throw new Error("User has no assets to sell");
+			throw new Error("User has no assets to sell or does not own this asset");
 		}
 
 		let queryStringC = {};
 		queryStringC.selector = {};
 		queryStringC.selector.doctype = "sellContract";
-		queryStringC.selector.owner = {};
-		queryStringC.selector.owner.$eq = entity;
-		queryStringC.selector.fulfilled = {};
-		queryStringC.selector.fulfilled.$eq = "0";
+		queryStringC.selector.owner = entity;
+		queryStringC.selector.fulfilled = "0";
+		queryStringC.selector.assetID = assetID;
 
 		let sellContracts = await method(stub, JSON.stringify(queryStringC), thisClass);
 
-		if(assets.length <= sellContracts.length){
-			throw new Error("User has insufficient assets to sell");
+		if(sellContracts.length !== 0){
+			throw new Error("User already has a sell contract for this asset.");
 		}
 
 		return;
 	}
 	
 	async initContract(stub, args, thisClass) {
-		if (args.length != 4) {
-			throw new Error('Incorrect number of arguments.');
-		}
 		
 		if(args[2].toLowerCase() == "buy"){
 			await thisClass.putBuy(stub, args, thisClass);
@@ -248,12 +244,16 @@ let Chaincode = class {
 	}
 
 	async putSell(stub, args, thisClass){
-		
+		if (args.length != 5) {
+			throw new Error('Incorrect number of arguments for a sell contract.');
+		}
+
 		let id = args[0];
 		let owner = args[1].toLowerCase();
 		let price = args[3];
+		let assetID = args[4];
 
-		await thisClass.hasAsset(stub, owner, thisClass);
+		await thisClass.hasAsset(stub, owner, assetID, thisClass);
 
 		let assetState = await stub.getState(id);
 		if (assetState.toString()){
@@ -267,6 +267,7 @@ let Chaincode = class {
 		contract.fulfilled = "0";
 		contract.matchedWith = "-1";
 		contract.price = parseInt(price);
+		contract.assetID = assetID;
 
 		await stub.putState(id, Buffer.from(JSON.stringify(contract)));
 		
@@ -278,6 +279,10 @@ let Chaincode = class {
 	}
 
 	async putBuy(stub, args, thisClass){
+		if (args.length != 4) {
+			throw new Error('Incorrect number of arguments for a buy contract.');
+		}
+
 		let id = args[0];
 		let owner = args[1].toLowerCase();
 		let price = args[3];
@@ -305,13 +310,14 @@ let Chaincode = class {
 	}
 
 	async initContractInternal(stub, args, thisClass) {
-		if (args.length != 3) {
+		if (args.length != 4) {
 			throw new Error('Incorrect number of arguments.');
 		}
 		
 		let id = args[0];
 		let owner = args[1].toLowerCase();
 		let price = args[2];
+		let assetID = args[3];
 		
 		let assetState = await stub.getState(id);
 		if (assetState.toString()){
@@ -325,6 +331,7 @@ let Chaincode = class {
 		contract.fulfilled = "0";
 		contract.matchedWith = "-1";
 		contract.price = parseInt(price);
+		contract.assetID = assetID;
 		
 		await stub.putState(id, Buffer.from(JSON.stringify(contract)));
 		
@@ -359,8 +366,7 @@ let Chaincode = class {
 		queryString.selector = {};
 		queryString.selector.owner = {};
 		queryString.selector.owner.$ne = contract.owner;
-		queryString.selector.fulfilled = {};
-		queryString.selector.fulfilled.$eq = "0";
+		queryString.selector.fulfilled = "0";
 		queryString.selector.price = {};
 		let newIsBuy = 0;
 		
@@ -400,26 +406,26 @@ let Chaincode = class {
 		let newContractJSONasBytes = Buffer.from(JSON.stringify(contract));
 		await stub.putState(contract.id, newContractJSONasBytes);
 		if(newIsBuy){
-			await thisClass.facilitateTransfer(stub, contractToFulfill.owner, contract.owner, thisClass);
+			await thisClass.facilitateTransfer(stub, contractToFulfill.owner, contract.owner, contractToFulfill.assetID, thisClass);
 		} else {
-			await thisClass.facilitateTransfer(stub, contract.owner, contractToFulfill.owner, thisClass);
+			await thisClass.facilitateTransfer(stub, contract.owner, contractToFulfill.owner, contract.assetID, thisClass);
 		}
 		console.info("Matched contract")
 		return 1;
 	}
 	
-	async facilitateTransfer(stub, from, to, thisClass){
+	async facilitateTransfer(stub, from, to, assetID, thisClass){
 		let queryString = {};
 		queryString.selector = {};
 		queryString.selector.doctype = "asset";
-		queryString.selector.owner = {};
-		queryString.selector.owner.$eq = from;
+		queryString.selector.owner = from;
+		queryString.selector.id = assetID;
 
-		let method = thisClass['getQueryResultForQueryString'];
+		let method = thisClass['getQueryResultForQueryString']; //Must be performed like this to ensure owner is the one selling
 		let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
 		
 		if(queryResults.length === 0){
-			throw new Error("No asset to transfer");
+			throw new Error("No asset to transfer or you do not own the asset that is being transferred.");
 		}
 
 		let asset = queryResults[0].Record;
