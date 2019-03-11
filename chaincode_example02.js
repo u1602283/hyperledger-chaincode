@@ -62,7 +62,7 @@ let Chaincode = class {
 	}
 	
 	async initAsset(stub, args, thisClass) {
-		if (args.length != 4) {
+		if (args.length != 3) {
 			throw new Error('Incorrect number of arguments. Expecting 4.');
 		}
 
@@ -70,8 +70,7 @@ let Chaincode = class {
 
 		let id = args[0];
 		let owner = args[1].toLowerCase();
-		let timestamp = args[2];
-		let price = args[3];
+		let price = args[2];
 		
 		let assetState = await stub.getState(id);
 		if (assetState.toString()){
@@ -82,14 +81,50 @@ let Chaincode = class {
 		asset.doctype = 'asset';
 		asset.id = id;
 		asset.owner = owner;
-		asset.timestamp = timestamp;
+		asset.timeCreated = stub.getTxTimestamp();
+		asset.timestamp = stub.getTxTimestamp();
 		asset.price = parseInt(price);
+		asset.state = "initialised"
 		
 		await stub.putState(id, Buffer.from(JSON.stringify(asset)));
 		
 		await thisClass.initContractInternal(stub, [crypto.createHash('sha1').update(id).digest('hex'), owner, parseInt(price), id], thisClass);
 		
 		console.info('Finish init asset');
+	}
+
+	async updateAssetState(stub, args, thisClass) {
+		if(args.length != 2) {
+			throw new Error('Incorrect number of arguments.');
+		}
+
+		let id = args[0];
+		let newState = args[1];
+
+		if(!newState){
+			throw new Error('Invalid state.');
+		}
+
+		let queryString = {};
+		queryString.selector = {};
+		queryString.selector.doctype = "asset";
+		queryString.selector.id = id;
+
+		let method = thisClass['getQueryResultForQueryString']; //Must be performed like this to ensure owner is the one selling
+		let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
+
+		if(queryResults.length === 0) {
+			throw new Error("Asset does not exist.");
+		}
+
+		let asset = queryResults[0].Record;
+
+		asset.state = newState;
+		asset.timestamp = stub.getTxTimestamp();
+
+		let adjustedAsset = Buffer.from(JSON.stringify(asset));
+
+		await stub.putState(id, adjustedAsset);
 	}
 	
 	async readItem(stub, args, thisClass) {
@@ -104,7 +139,7 @@ let Chaincode = class {
 		let assetAsbytes = await stub.getState(id); //get the marble from chaincode state
 		if (!assetAsbytes.toString()) {
 			let jsonResp = {};
-			jsonResp.Error = 'Asset does not exist: ' + name;
+			jsonResp.Error = 'Asset does not exist: ' + id;
 			throw new Error(JSON.stringify(jsonResp));
 		}
 		console.info('=======================================');
