@@ -65,6 +65,9 @@ let Chaincode = class {
 		if (args.length != 4) {
 			throw new Error('Incorrect number of arguments. Expecting 4.');
 		}
+
+		await thisClass.checkHasWallet(stub, args[1].toLowerCase(), thisClass);
+
 		let id = args[0];
 		let owner = args[1].toLowerCase();
 		let timestamp = args[2];
@@ -254,9 +257,25 @@ let Chaincode = class {
 
 		return;
 	}
+
+	async checkHasWallet(stub, owner, thisClass) {
+		let queryString = {};
+		queryString.selector = {};
+		queryString.selector.doctype = "wallet";
+		queryString.selector.owner = owner;
+
+		let method = thisClass['getQueryResultForQueryString']; //Must be performed like this to ensure owner is the one selling
+		let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
+
+		if(queryResults.length === 0) {
+			throw new Error("User does not have a wallet, initialise a wallet before any contracts or assets");
+		}
+
+		return 0;
+	}
 	
 	async initContract(stub, args, thisClass) {
-		
+		await thisClass.checkHasWallet(stub, args[1].toLowerCase(), thisClass);
 		if(args[2].toLowerCase() == "buy"){
 			await thisClass.putBuy(stub, args, thisClass);
 		} else if (args[2].toLowerCase() == "sell") {
@@ -457,6 +476,37 @@ let Chaincode = class {
 
 		let transferredAsset = Buffer.from(JSON.stringify(asset));
 		await stub.putState(asset.id, transferredAsset);
+		await thisClass.makePayment(stub, from, to, asset.price, thisClass);
+
+		return 0;
+	}
+
+	async makePayment(stub, seller, buyer, price, thisClass) {
+		let queryStringSeller = {};
+		queryStringSeller.selector = {};
+		queryStringSeller.selector.doctype = "wallet";
+		queryStringSeller.selector.owner = seller;
+
+		let queryStringBuyer = {};
+		queryStringBuyer.selector = {};
+		queryStringBuyer.selector.doctype = "wallet";
+		queryStringBuyer.selector.owner = buyer;
+
+		let method = thisClass['getQueryResultForQueryString']; //Must be performed like this to ensure owner is the one selling
+		let queryResultsSeller = await method(stub, JSON.stringify(queryStringSeller), thisClass);
+		let queryResultsBuyer = await method(stub, JSON.stringify(queryStringBuyer), thisClass);
+
+		let walletSeller = queryResultsSeller[0].Record;
+		let walletBuyer = queryResultsBuyer[0].Record;
+
+		walletSeller.balance = walletSeller.balance + price;
+		walletBuyer.balance = walletBuyer.balance - price;
+
+		let adjustedSeller = Buffer.from(JSON.stringify(walletSeller));
+		let adjustedBuyer = Buffer.from(JSON.stringify(walletBuyer));
+
+		await stub.putState(walletSeller.owner, adjustedSeller);
+		await stub.putState(walletBuyer.owner, adjustedBuyer);
 
 		return 0;
 	}
