@@ -38,18 +38,41 @@ let Chaincode = class {
 	}
 	
 	
+	async initWallet(stub, args, thisClass) {
+		if (args.length != 2) {
+			throw new Error('Incorrect number of arguments. Expecting 2.');
+		}
+
+		let owner = args[0].toLowerCase();
+		let balance = parseInt(args[1]);
+
+		let walletState = await stub.getState(owner);
+		if (walletState.toString()){
+			throw new Error("Failed to add wallet, ID already exists. Choose a different name.");
+		}
+
+		let wallet = {};
+		wallet.doctype = "wallet";
+		wallet.owner = owner;
+		wallet.balance = balance;
+
+		await stub.putState(owner, Buffer.from(JSON.stringify(wallet)));
+
+		console.info('Finish init wallet');
+	}
+	
 	async initAsset(stub, args, thisClass) {
 		if (args.length != 4) {
-			throw new Error('Incorrect number of arguments. Expecting 4');
+			throw new Error('Incorrect number of arguments. Expecting 4.');
 		}
 		let id = args[0];
-		let owner = args[1];
+		let owner = args[1].toLowerCase();
 		let timestamp = args[2];
 		let price = args[3];
 		
 		let assetState = await stub.getState(id);
 		if (assetState.toString()){
-			throw new Error("Failed to add asset, ID already exists");
+			throw new Error("Failed to add asset, ID already exists.");
 		}
 		
 		let asset = {};
@@ -68,7 +91,7 @@ let Chaincode = class {
 	
 	async readItem(stub, args, thisClass) {
 		if (args.length != 1) {
-			throw new Error('Incorrect number of arguments. Expecting ID of the item to query');
+			throw new Error('Incorrect number of arguments. Expecting ID of the item to query.');
 		}
 		
 		let id = args[0];
