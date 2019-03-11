@@ -329,6 +329,20 @@ let Chaincode = class {
 		let owner = args[1].toLowerCase();
 		let price = args[3];
 
+		let queryString = {};
+		queryString.selector = {};
+		queryString.selector.doctype = "wallet";
+		queryString.selector.owner = owner;
+
+		let method = thisClass['getQueryResultForQueryString']; //Must be performed like this to ensure owner is the one selling
+		let queryResults = await method(stub, JSON.stringify(queryString), thisClass);
+
+		let wallet = queryResults[0].Record;
+
+		if(wallet.balance < price) {
+			throw new Error("Insufficient funds for this buy contract.");
+		}
+
 		let assetState = await stub.getState(id);
 		if (assetState.toString()){
 			throw new Error("Failed to add contract, ID already exists");
@@ -499,6 +513,10 @@ let Chaincode = class {
 		let walletSeller = queryResultsSeller[0].Record;
 		let walletBuyer = queryResultsBuyer[0].Record;
 
+		if(walletBuyer.balance < price) {
+			throw new Error("Buyer has insufficient funds for transfer");
+		}
+		
 		walletSeller.balance = walletSeller.balance + price;
 		walletBuyer.balance = walletBuyer.balance - price;
 
