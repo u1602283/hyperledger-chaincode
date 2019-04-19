@@ -1,34 +1,50 @@
 /*
 # Based on code marbles_chaincode.js produced by IBM Corp. (Copyright IBM Corp. All Rights Reserved.)
 # SPDX-License-Identifier: Apache-2.0
+# All work beyond 
 */
 
 'use strict';
-const shim = require('fabric-shim');
-const util = require('util');
-const crypto = require('crypto');
+const shim = require('fabric-shim'); //Used for interaction with the Fabric system
+const util = require('util'); //Useful features for Node
+const crypto = require('crypto'); //Library for hashing among other cryptography-related functions
 
+
+/**
+ * This class contains all of the chaincode that is installed on the peers
+ */
 let Chaincode = class {
+
+	/**
+	 * This function simply intialises the chaincode
+	 * @param {ChaincodeStub} stub provides all of the information required by the chaincode to execute
+	 */
 	async Init(stub) {
 		let ret = stub.getFunctionAndParameters();
 		console.info(ret);
-		console.info('=========== Simple Asset Chaincode ===========');
+		console.info('=========== Simple Asset Chaincode ==========='); //These don't actually print anything out during execution
 		return shim.success();
 	}
 	
+	/**
+	 * Handler function for all chaincode invocations manages calling all of the original functions
+	 * @param {ChaincodeStub} stub 
+	 */
 	async Invoke(stub) {
 		console.info('Transaction ID: ' + stub.getTxID());
 		console.info(util.format('Args: %j', stub.getArgs()));
 		
-		let ret = stub.getFunctionAndParameters();
+		let ret = stub.getFunctionAndParameters(); //Extract all provided arguments including the function name
 		console.info(ret);
 		
-		let method = this[ret.fcn];
-		if (!method) {
+		let method = this[ret.fcn]; //Check to see if the method called exists...
+		if (!method) { //And fail if it doesn't
 			console.log('no function of name:' + ret.fcn + ' found');
 			throw new Error('Received unknown function ' + ret.fcn + ' invocation');
 		}
+		//Attempt to call the method and catch any failures, reporting the reason
 		try {
+			//All async methods must use the await keyword so they don't complete asynchronously
 			let payload = await method(stub, ret.params, this);
 			return shim.success(payload);
 		} catch (err) {
@@ -37,7 +53,12 @@ let Chaincode = class {
 		}
 	}
 	
-	
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async initWallet(stub, args, thisClass) {
 		if (args.length != 2) {
 			throw new Error('Incorrect number of arguments. Expecting 2.');
@@ -61,6 +82,12 @@ let Chaincode = class {
 		console.info('Finish init wallet');
 	}
 	
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async initAsset(stub, args, thisClass) {
 		if (args.length != 3) {
 			throw new Error('Incorrect number of arguments. Expecting 4.');
@@ -93,6 +120,12 @@ let Chaincode = class {
 		console.info('Finish init asset');
 	}
 
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async updateAssetState(stub, args, thisClass) {
 		if(args.length != 2) {
 			throw new Error('Incorrect number of arguments.');
@@ -127,6 +160,12 @@ let Chaincode = class {
 		await stub.putState(id, adjustedAsset);
 	}
 	
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async readItem(stub, args, thisClass) {
 		if (args.length != 1) {
 			throw new Error('Incorrect number of arguments. Expecting ID of the item to query.');
@@ -231,6 +270,12 @@ let Chaincode = class {
 		return results;
 	}
 	
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async queryAssetsByOwner(stub, args, thisClass) {
 		//   0
 		// 'bob'
@@ -248,6 +293,12 @@ let Chaincode = class {
 		return queryResults; //shim.success(queryResults);
 	}
 	
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async queryAll(stub, args, thisClass) {
 		//   0
 		// 'queryString'
@@ -309,6 +360,12 @@ let Chaincode = class {
 		return 0;
 	}
 	
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async initContract(stub, args, thisClass) {
 		await thisClass.checkHasWallet(stub, args[1].toLowerCase(), thisClass);
 		if(args[2].toLowerCase() == "buy"){
@@ -320,6 +377,12 @@ let Chaincode = class {
 		}
 	}
 
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async putSell(stub, args, thisClass){
 		if (args.length != 5) {
 			throw new Error('Incorrect number of arguments for a sell contract.');
@@ -355,6 +418,12 @@ let Chaincode = class {
 		return 0;
 	}
 
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async putBuy(stub, args, thisClass){
 		if (args.length != 4) {
 			throw new Error('Incorrect number of arguments for a buy contract.');
@@ -400,6 +469,12 @@ let Chaincode = class {
 		return 0;
 	}
 
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async initContractInternal(stub, args, thisClass) {
 		if (args.length != 4) {
 			throw new Error('Incorrect number of arguments.');
@@ -433,6 +508,12 @@ let Chaincode = class {
 		return 1;
 	}
 	
+	/**
+	 * 
+	 * @param {ChaincodeStub} stub 
+	 * @param {Array} args 
+	 * @param {Chaincode} thisClass 
+	 */
 	async getContractsByOwner(stub, args, thisClass) {
 		//   0
 		// 'bob'
@@ -566,4 +647,4 @@ let Chaincode = class {
 
 };
 
-shim.start(new Chaincode());
+shim.start(new Chaincode()); //Create an instatiation of the chaincode to run
