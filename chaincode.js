@@ -3,7 +3,7 @@
 # Based on code marbles_chaincode.js produced by IBM Corp. (Copyright IBM Corp. All Rights Reserved.)
 # SPDX-License-Identifier: Apache-2.
 # Guidance on basic structures such as retrieving from the state database was built upon, adding new ways of interacting with the state database.
-# All work beyond the file /chaincode/chaincode_example02/node/chaincode_example02.js in release 1.4.0 of the 'fabric-samples' repository at:
+# All work beyond the file /chaincode/marbles02/node/marbles_chaincode.js in release 1.4.0 of the 'fabric-samples' repository at:
 # https://github.com/hyperledger/fabric-samples
 # was produced by Scott Pickering and is also licensed under the Apache-2.0 license included with the code.
 # 
